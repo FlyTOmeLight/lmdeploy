@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Tuple
 
-__version__ = '0.6.2.post1batch'
+__version__ = '0.6.2.1'
 short_version = __version__
 
 
