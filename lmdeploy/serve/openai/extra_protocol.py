@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Literal
 
 import shortuuid
 from lmdeploy.serve.openai.protocol import (ChatCompletionResponseChoice,
