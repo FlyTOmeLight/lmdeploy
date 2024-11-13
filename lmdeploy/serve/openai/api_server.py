@@ -1072,7 +1072,7 @@ async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
         else:
             tools = [item.function.model_dump() for item in request.tools]
 
-    resp = VariableInterface.async_engine.extra_batch_infer(
+    resp = await VariableInterface.async_engine.extra_batch_infer(
         prompts=request.messages,
         gen_config=gen_config,
         do_preprocess=True,
@@ -1228,6 +1228,7 @@ def serve(model_path: str,
             f'{server_name}:{server_port}\033[0m in a browser for detailed api'
             ' usage!!!')
     uvicorn.run(app=app,
+                reload=True,
                 host=server_name,
                 port=server_port,
                 log_level='info',

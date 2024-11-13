@@ -137,18 +137,18 @@ class VLAsyncEngine(AsyncEngine):
         results['prompt'] = decorated
         return results
 
-    def extra_batch_infer(self, prompts: Union[List[str], str, List[Dict],
+    async def extra_batch_infer(self, prompts: Union[List[str], str, List[Dict],
                                                List[List[Dict]]], **kwargs):
         """Extra Inference a batch of prompts."""
         # prompts = self._convert_prompts(prompts)
-        return super().batch_infer(prompts, **kwargs)
+        return await super().batch_infer(prompts, **kwargs)
 
-    def batch_infer(self, prompts: Union[VLPromptType, List[Dict],
+    async def batch_infer(self, prompts: Union[VLPromptType, List[Dict],
                                          List[VLPromptType], List[List[Dict]]],
                     **kwargs):
         """Inference a batch of prompts."""
         prompts = self._convert_prompts(prompts)
-        return super().batch_infer(prompts, **kwargs)
+        return await super().batch_infer(prompts, **kwargs)
 
     def stream_infer(self, prompts: Union[VLPromptType, List[Dict],
                                           List[VLPromptType],

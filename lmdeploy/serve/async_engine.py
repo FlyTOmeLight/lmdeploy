@@ -284,7 +284,7 @@ class AsyncEngine(LogitsMixin):
         self.running_session_ids.add(session_id)
         return generator
 
-    def extra_batch_infer(
+    async def extra_batch_infer(
             self,
             prompts: Union[List[str], str, List[Dict], List[List[Dict]]],
             gen_config: Optional[Union[GenerationConfig,
@@ -296,56 +296,46 @@ class AsyncEngine(LogitsMixin):
         """Inference a batch of prompts.
         :return: outputs
         """
-        return self.batch_infer(prompts,
+        return await self.batch_infer(prompts,
                                 gen_config=gen_config,
                                 do_preprocess=do_preprocess,
                                 adapter_name=adapter_name,
                                 use_tqdm=use_tqdm,
                                 **kwargs)
 
-    def batch_infer(self,
-                    prompts: Union[List[str], str, List[Dict],
-                                   List[List[Dict]]],
-                    gen_config: Optional[Union[GenerationConfig,
-                                               List[GenerationConfig]]] = None,
-                    do_preprocess: bool = True,
-                    adapter_name: Optional[str] = None,
-                    use_tqdm: bool = False,
-                    **kwargs):
-        """Inference a batch of prompts.
+    async def batch_infer(self,
+                          prompts: Union[List[str], str, List[Dict], List[List[Dict]]],
+                          gen_config: Optional[Union[GenerationConfig, List[GenerationConfig]]] = None,
+                          do_preprocess: bool = True,
+                          adapter_name: Optional[str] = None,
+                          use_tqdm: bool = False,
+                          **kwargs):
+        """Asynchronous inference for a batch of prompts.
 
         Args:
-            prompts (List[str] | str | List[Dict] | List[Dict]): a batch of
-                prompts. It accepts: string prompt, a list of string prompts,
-                a chat history in OpenAI format or a list of chat history.
-            gen_config (GenerationConfig | None): a instance of or a list of
-                GenerationConfig. Default to None.
-            do_preprocess (bool): whether pre-process the messages. Default to
-                True, which means chat_template will be applied.
-            adapter_name (str): the adapter name of slora for pytorch backend.
-                Pick one from adapters. Default to None, using the base model.
+            prompts (List[str] | str | List[Dict] | List[Dict]): a batch of prompts.
+            gen_config (GenerationConfig | None): a instance of or a list of GenerationConfig. Default to None.
+            do_preprocess (bool): whether pre-process the messages. Default to True.
+            adapter_name (str): the adapter name of slora for pytorch backend. Default to None.
             use_tqdm (bool): Whether use the progress bar. Default to False
         """
-        need_list_wrap = isinstance(prompts, str) or isinstance(
-            prompts[0], Dict)
+        need_list_wrap = isinstance(prompts, str) or isinstance(prompts[0], Dict)
         prompts = [prompts] if need_list_wrap else prompts
         assert isinstance(prompts, List), 'prompts should be a list'
         if gen_config is None:
             gen_config = GenerationConfig()
         if not isinstance(gen_config, List):
             gen_config = [gen_config] * len(prompts)
-        assert len(prompts) == len(gen_config), \
-                'input gen_confg length differs from the length of prompts'  # noqa
+        assert len(prompts) == len(gen_config), 'input gen_config length differs from the length of prompts'
+
         prompt_num = len(prompts)
         session_ids = [next(self._session_id) for _ in range(prompt_num)]
-        outputs = [
-            Response('', 0, 0, session_ids[i], index=i)
-            for i in range(prompt_num)
-        ]
+        outputs = [Response('', 0, 0, session_ids[i], index=i) for i in range(prompt_num)]
         generators = []
         if use_tqdm:
             import tqdm
             pbar = tqdm.tqdm(total=len(prompts))
+
         for i, prompt in enumerate(prompts):
             generators.append(
                 self.generate(prompt,
@@ -373,11 +363,7 @@ class AsyncEngine(LogitsMixin):
                 if use_tqdm and out.finish_reason is not None:
                     pbar.update(1)
 
-        async def gather():
-            await asyncio.gather(
-                *[_inner_call(i, generators[i]) for i in range(len(prompts))])
-
-        _get_event_loop().run_until_complete(gather())
+        await asyncio.gather(*[_inner_call(i, generators[i]) for i in range(len(prompts))])
         outputs = outputs[0] if need_list_wrap else outputs
         return outputs
 
