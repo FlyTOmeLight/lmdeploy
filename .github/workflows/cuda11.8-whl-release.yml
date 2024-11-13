@@ -102,7 +102,7 @@ jobs:
     environment: 'prod'
     needs:
       - linux-build
-      - windows-build
+#      - windows-build
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
