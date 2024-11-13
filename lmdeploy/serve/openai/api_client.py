@@ -3,7 +3,6 @@ import json
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import requests
-
 from lmdeploy.utils import get_logger
 
 

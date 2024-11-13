@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
-
 from lmdeploy.archs import get_task
 from lmdeploy.messages import (GenerationConfig, LogitsProcessor,
                                PytorchEngineConfig, TurbomindEngineConfig)

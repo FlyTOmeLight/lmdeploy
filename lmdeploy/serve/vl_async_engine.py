@@ -2,7 +2,6 @@
 from typing import Dict, List, Optional, Union
 
 import numpy as np
-
 from lmdeploy.pytorch.check_env import try_import_deeplink
 from lmdeploy.serve.async_engine import AsyncEngine
 from lmdeploy.utils import get_logger
@@ -137,6 +136,12 @@ class VLAsyncEngine(AsyncEngine):
         results['input_ids'] = input_ids
         results['prompt'] = decorated
         return results
+
+    def extra_batch_infer(self, prompts: Union[List[str], str, List[Dict],
+                                               List[List[Dict]]], **kwargs):
+        """Extra Inference a batch of prompts."""
+        # prompts = self._convert_prompts(prompts)
+        return super().batch_infer(prompts, **kwargs)
 
     def batch_infer(self, prompts: Union[VLPromptType, List[Dict],
                                          List[VLPromptType], List[List[Dict]]],

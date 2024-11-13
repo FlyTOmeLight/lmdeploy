@@ -4,9 +4,8 @@ from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import torch
-from torch.nn.utils.rnn import pad_sequence
-
 from lmdeploy.utils import get_logger
+from torch.nn.utils.rnn import pad_sequence
 
 logger = get_logger('lmdeploy')
 
@@ -275,14 +274,14 @@ class LogitsMixin:
             # shift token_ids by 1 to the left
             target_ids = input_ids[i + 1:i + 1 + max_input_len]
 
-            loss, target_count = self._get_ppl(
-                generator=generator,
-                input_ids=[token_ids],
-                max_input_len=max_input_len,
-                target_ids=[target_ids],
-                steps=step,
-                sequence_start=(i == 0),
-                sequence_end=(i + max_input_len >= seq_len))
+            loss, target_count = self._get_ppl(generator=generator,
+                                               input_ids=[token_ids],
+                                               max_input_len=max_input_len,
+                                               target_ids=[target_ids],
+                                               steps=step,
+                                               sequence_start=(i == 0),
+                                               sequence_end=(i + max_input_len
+                                                             >= seq_len))
             losses.append(loss)
             target_counts.append(target_count)
         loss_sum = torch.concatenate(losses).sum().unsqueeze(0)
