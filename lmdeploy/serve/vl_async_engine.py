@@ -12,8 +12,6 @@ from lmdeploy.vl.constants import IMAGE_DUMMY_TOKEN_INDEX, IMAGE_TOKEN
 from lmdeploy.vl.engine import ImageEncoder
 from lmdeploy.vl.templates import VLPromptType, get_vl_prompt_template, load_image
 
-from PaddleFlow.example.pipeline.multiple_fs.run import step_extra_fs
-
 logger = get_logger('lmdeploy')
 
 
@@ -52,8 +50,6 @@ class VLAsyncEngine(AsyncEngine):
             _prompts = prompts
         return _prompts
 
-
-
     def _process_item(self, item):
         if isinstance(item, list):
             return [self._process_item(i) for i in item]
@@ -61,7 +57,9 @@ class VLAsyncEngine(AsyncEngine):
         if isinstance(item, dict):
             if 'content' in item:
                 if isinstance(item['content'], list):
-                    item['content'] = [self._process_message(m) for m in item['content']]
+                    item['content'] = [
+                        self._process_message(m) for m in item['content']
+                    ]
                 else:
                     item['content'] = self._process_message(item['content'])
                 return item
@@ -80,12 +78,7 @@ class VLAsyncEngine(AsyncEngine):
                 if isinstance(image_url, str):
                     image = load_image(image_url)
 
-                return {
-                    'type': 'image_data',
-                    'image_data': {
-                        'data': image
-                    }
-                }
+                return {'type': 'image_data', 'image_data': {'data': image}}
 
         return message
 
@@ -181,15 +174,16 @@ class VLAsyncEngine(AsyncEngine):
         results['prompt'] = decorated
         return results
 
-    async def extra_batch_infer(self, prompts: Union[List[str], str, List[Dict],
+    async def extra_batch_infer(self,
+                                prompts: Union[List[str], str, List[Dict],
                                                List[List[Dict]]], **kwargs):
         """Extra Inference a batch of prompts."""
         prompts = self._convert_prompts(prompts)
         return await super().batch_infer(prompts, **kwargs)
 
     async def batch_infer(self, prompts: Union[VLPromptType, List[Dict],
-                                         List[VLPromptType], List[List[Dict]]],
-                    **kwargs):
+                                               List[VLPromptType],
+                                               List[List[Dict]]], **kwargs):
         """Inference a batch of prompts."""
         prompts = self._convert_prompts(prompts)
         return await super().batch_infer(prompts, **kwargs)

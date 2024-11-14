@@ -2,9 +2,9 @@ import time
 from typing import Any, Dict, List, Optional, Union, Literal
 
 import shortuuid
-from lmdeploy.serve.openai.protocol import (ChatCompletionResponseChoice,
-                                            ResponseFormat, StreamOptions,
-                                            Tool, ToolChoice, UsageInfo)
+from lmdeploy.serve.openai.protocol import (ResponseFormat, StreamOptions,
+                                            Tool, ToolChoice, UsageInfo,
+                                            ChatMessage, ChoiceLogprobs)
 from pydantic import BaseModel, Field
 
 
@@ -43,11 +43,20 @@ class BatchChatCompletionRequest(BaseModel):
     min_p: float = 0.0
 
 
+class BatchChatCompletionResponseChoice(BaseModel):
+    """Chat completion response choices."""
+    index: int
+    message: ChatMessage
+    logprobs: Optional[ChoiceLogprobs] = None
+    finish_reason: Optional[Literal['stop', 'length', 'tool_calls']] = None
+    usage: Optional[UsageInfo] = None
+
+
 class BatchChatCompletionResponse(BaseModel):
     """Chat completion response."""
     id: str = Field(default_factory=lambda: f'chatcmpl-{shortuuid.random()}')
     object: str = 'batch.chat.completion'
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[ChatCompletionResponseChoice]
+    choices: List[BatchChatCompletionResponseChoice]
     usage: UsageInfo

@@ -30,7 +30,9 @@ from lmdeploy.serve.openai.protocol import (  # noqa: E501
 from lmdeploy.tokenizer import DetokenizeState, Tokenizer
 from lmdeploy.utils import get_logger
 
-from lmdeploy.serve.openai.extra_protocol import BatchChatCompletionRequest
+from lmdeploy.serve.openai.extra_protocol import (
+    BatchChatCompletionRequest, BatchChatCompletionResponseChoice,
+    BatchChatCompletionResponse)
 
 logger = get_logger('lmdeploy')
 
@@ -1012,7 +1014,7 @@ async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
     adapter_name = None
     if model_name != VariableInterface.async_engine.model_name:
         adapter_name = model_name  # got a adapter name
-    # created_time = int(time.time())
+    created_time = int(time.time())
 
     if isinstance(request.stop, str):
         request.stop = [request.stop]
@@ -1079,10 +1081,48 @@ async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
         adapter_name=adapter_name,
         use_tqdm=False)
 
-    logger.info(f'Batch chat completion tool: {tools}')
-    logger.info(f'Batch chat completion response: {resp}')
+    sum_prompt_tokens = 0
+    sum_completion_tokens = 0
+    sum_total_tokens = 0
+    choices = []
+    for i, item in enumerate(resp):
+        logprobs = None
+        if gen_logprobs and len(item.logprobs):
+            logprobs = _create_chat_completion_logprobs(
+                VariableInterface.async_engine.tokenizer, resp.token_ids,
+                item.logprobs)
 
-    return resp
+        choice_data = BatchChatCompletionResponseChoice(
+            index=item.index,
+            message=ChatMessage(role='assistant', content=item.text),
+            logprobs=logprobs,
+            finish_reason=item.finish_reason,
+        )
+        total_tokens = sum([item.input_token_len, item.generate_token_len])
+        sum_prompt_tokens += item.input_token_len
+        sum_completion_tokens += item.generate_token_len
+        sum_total_tokens += total_tokens
+        usage = UsageInfo(
+            prompt_tokens=item.input_token_len,
+            completion_tokens=item.generate_token_len,
+            total_tokens=total_tokens,
+        )
+        choice_data.usage = usage
+        choices.append(choice_data)
+
+    response = BatchChatCompletionResponse(
+        id=str(request.session_id),
+        created=created_time,
+        model=model_name,
+        choices=choices,
+        usage=UsageInfo(
+            prompt_tokens=sum_prompt_tokens,
+            completion_tokens=sum_completion_tokens,
+            total_tokens=sum_total_tokens,
+        ),
+    )
+
+    return response
 
 
 @router.on_event('startup')
