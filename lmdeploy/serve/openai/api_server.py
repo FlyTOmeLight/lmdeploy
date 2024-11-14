@@ -1228,7 +1228,6 @@ def serve(model_path: str,
             f'{server_name}:{server_port}\033[0m in a browser for detailed api'
             ' usage!!!')
     uvicorn.run(app=app,
-                reload=True,
                 host=server_name,
                 port=server_port,
                 log_level='info',
