@@ -1,11 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import asyncio
 import copy
+import json
 import os
 import time
 from functools import partial
 from http import HTTPStatus
-from typing import AsyncGenerator, Dict, List, Literal, Optional, Union
+from typing import AsyncGenerator, Dict, List, Literal, Optional, Union, Callable
 
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
@@ -33,6 +34,8 @@ from lmdeploy.utils import get_logger
 from lmdeploy.serve.openai.extra_protocol import (
     BatchChatCompletionRequest, BatchChatCompletionResponseChoice,
     BatchChatCompletionResponse)
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import Message
 
 logger = get_logger('lmdeploy')
 
@@ -1152,6 +1155,43 @@ async def startup_event():
         print(f'Service registration failed: {e}')
 
 
+class DefaultModelMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to add default model to the request body if it is not specified
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        if request.method == "POST":
+            content_type = request.headers.get("content-type", "").lower()
+
+            if "application/json" in content_type:
+                original_body = await request.body()
+
+                try:
+                    json_data = json.loads(original_body)
+                    if isinstance(json_data,
+                                  dict) and "model" not in json_data:
+                        json_data[
+                            "model"] = VariableInterface.async_engine.model_name
+                        modified_body = json.dumps(json_data).encode()
+                    else:
+                        modified_body = original_body
+                except json.JSONDecodeError:
+                    modified_body = original_body
+
+                async def receive() -> Message:
+                    return {
+                        "type": "http.request",
+                        "body": modified_body,
+                        "more_body": False
+                    }
+
+                request._receive = receive
+
+        response = await call_next(request)
+        return response
+
+
 def serve(model_path: str,
           model_name: Optional[str] = None,
           backend: Literal['turbomind', 'pytorch'] = 'turbomind',
@@ -1230,6 +1270,7 @@ def serve(model_path: str,
 
     app.include_router(router)
 
+    app.add_middleware(DefaultModelMiddleware)
     if allow_origins:
         app.add_middleware(
             CORSMiddleware,
