@@ -55,6 +55,38 @@ router = APIRouter()
 get_bearer_token = HTTPBearer(auto_error=False)
 
 
+async def add_default_model_name(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400,
+                            detail={
+                                'error': {
+                                    'message': 'Please request with json!',
+                                    'type': 'invalid_request_error',
+                                    'param': None,
+                                    'code': 'invalid_json',
+                                }
+                            })
+
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400,
+                            detail={
+                                'error': {
+                                    'message':
+                                    'Please request with json object!',
+                                    'type': 'invalid_request_error',
+                                    'param': None,
+                                    'code': 'invalid_json_object',
+                                }
+                            })
+
+    if 'model' not in body:
+        body['model'] = VariableInterface.async_engine.model_name
+
+    return body
+
+
 async def check_api_key(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(get_bearer_token),
 ) -> str:
@@ -283,7 +315,10 @@ def logit_bias_logits_processor(logit_bias: Union[Dict[int, float],
     return partial(_logit_bias_processor, clamped_logit_bias)
 
 
-@router.post('/v1/chat/completions', dependencies=[Depends(check_api_key)])
+@router.post(
+    '/v1/chat/completions',
+    dependencies=[Depends(check_api_key),
+                  Depends(add_default_model_name)])
 async def chat_completions_v1(request: ChatCompletionRequest,
                               raw_request: Request = None):
     """Completion API similar to OpenAI's API.
@@ -557,7 +592,10 @@ async def chat_completions_v1(request: ChatCompletionRequest,
     return response
 
 
-@router.post('/v1/completions', dependencies=[Depends(check_api_key)])
+@router.post(
+    '/v1/completions',
+    dependencies=[Depends(check_api_key),
+                  Depends(add_default_model_name)])
 async def completions_v1(request: CompletionRequest,
                          raw_request: Request = None):
     """Completion API similar to OpenAI's API.
@@ -951,8 +989,10 @@ async def chat_interactive_v1(request: GenerateRequest,
         return JSONResponse(ret)
 
 
-@router.post('/v1/chat/batch_completions',
-             dependencies=[Depends(check_api_key)])
+@router.post(
+    '/v1/chat/batch_completions',
+    dependencies=[Depends(check_api_key),
+                  Depends(add_default_model_name)])
 async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
                                     raw_request: Request = None):
     """Completion API similar to OpenAI's API.
@@ -1155,43 +1195,6 @@ async def startup_event():
         print(f'Service registration failed: {e}')
 
 
-class DefaultModelMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to add default model to the request body if it is not specified
-    """
-
-    async def dispatch(self, request: Request, call_next: Callable):
-        if request.method == "POST":
-            content_type = request.headers.get("content-type", "").lower()
-
-            if "application/json" in content_type:
-                original_body = await request.body()
-
-                try:
-                    json_data = json.loads(original_body)
-                    if isinstance(json_data,
-                                  dict) and "model" not in json_data:
-                        json_data[
-                            "model"] = VariableInterface.async_engine.model_name
-                        modified_body = json.dumps(json_data).encode()
-                    else:
-                        modified_body = original_body
-                except json.JSONDecodeError:
-                    modified_body = original_body
-
-                async def receive() -> Message:
-                    return {
-                        "type": "http.request",
-                        "body": modified_body,
-                        "more_body": False
-                    }
-
-                request._receive = receive
-
-        response = await call_next(request)
-        return response
-
-
 def serve(model_path: str,
           model_name: Optional[str] = None,
           backend: Literal['turbomind', 'pytorch'] = 'turbomind',
@@ -1270,7 +1273,6 @@ def serve(model_path: str,
 
     app.include_router(router)
 
-    app.add_middleware(DefaultModelMiddleware)
     if allow_origins:
         app.add_middleware(
             CORSMiddleware,
