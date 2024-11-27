@@ -1115,7 +1115,7 @@ async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
         else:
             tools = [item.function.model_dump() for item in request.tools]
 
-    logger.info(f'Batch chat completion request: {request.messages}')
+    logger.info(f'batch chat completion request: {request.messages}')
 
     resp = await VariableInterface.async_engine.extra_batch_infer(
         prompts=request.messages,

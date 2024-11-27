@@ -72,7 +72,7 @@ class VLAsyncEngine(AsyncEngine):
             if message.get('type') == 'image_url' or message.get(
                     'type') == 'image_data':
                 # Convert image URL to PIL Image
-                image_url = message['image_url'] if message.get(
+                image_url = message['image_url']['url'] if message.get(
                     'type') == 'image_url' else message['image_data']["data"]
                 image = None
                 if isinstance(image_url, PIL.Image.Image):
