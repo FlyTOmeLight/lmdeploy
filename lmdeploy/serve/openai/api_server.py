@@ -34,8 +34,6 @@ from lmdeploy.utils import get_logger
 from lmdeploy.serve.openai.extra_protocol import (
     BatchChatCompletionRequest, BatchChatCompletionResponseChoice,
     BatchChatCompletionResponse)
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import Message
 
 logger = get_logger('lmdeploy')
 
@@ -81,7 +79,7 @@ async def add_default_model_name(request: Request):
                                 }
                             })
 
-    if 'model' not in body:
+    if 'model' not in body or len(body['model']) == 0:
         body['model'] = VariableInterface.async_engine.model_name
 
     return body
@@ -1116,6 +1114,8 @@ async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
             ]
         else:
             tools = [item.function.model_dump() for item in request.tools]
+
+    logger.info(f'Batch chat completion request: {request.messages}')
 
     resp = await VariableInterface.async_engine.extra_batch_infer(
         prompts=request.messages,
