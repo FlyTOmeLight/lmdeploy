@@ -40,7 +40,12 @@ def quantization(config,
             now the type is ' + quantization_type
 
     if 'llama-3' in origin_model_name.lower():
-        quantization_cmd += ' --search-scale True'
+        quantization_cmd += ' --search-scale'
+
+    if not is_bf16_supported():
+        quantization_cmd += ' --batch-size 8'
+    else:
+        quantization_cmd += ' --batch-size 32'
 
     if not is_bf16_supported():
         quantization_cmd += ' --batch-size 8'

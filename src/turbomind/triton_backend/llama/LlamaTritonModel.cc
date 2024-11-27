@@ -133,6 +133,12 @@ void LlamaTritonModel<T>::handleMissingParams()
                        (int)model_param_.kv_head_num);
     }
 
+    if (model_param_.embedding_size == 0) {
+        model_param_.embedding_size = model_param_.vocab_size;
+        TM_LOG_WARNING("[LlamaTritonModel] `embedding_size` is not set, default to `vocab_size` (%d).",
+                       (int)model_param_.vocab_size);
+    }
+
     if (!attn_param_.max_position_embeddings) {
         attn_param_.max_position_embeddings = 2048;
         TM_LOG_WARNING("[LlamaTritonModel] `max_position_embeddings` is not set, default to %d.",
@@ -252,6 +258,7 @@ LlamaTritonModel<T>::LlamaTritonModel(size_t      tensor_para_size,
     model_param_.layer_num          = model_reader["num_layer"].as<int>();
     model_param_.inter_size         = model_reader["inter_size"].as<int>();
     model_param_.vocab_size         = model_reader["vocab_size"].as<int>();
+    model_param_.embedding_size     = model_reader["embedding_size"].as<int>();
     model_param_.norm_eps           = model_reader["norm_eps"].as<float>();
     model_param_.start_id           = model_reader["start_id"].as<int>();
     model_param_.end_id             = model_reader["end_id"].as<int>();
@@ -265,6 +272,9 @@ LlamaTritonModel<T>::LlamaTritonModel(size_t      tensor_para_size,
     // rotary embedding parameters
     attn_param_.rotary_embedding_dim    = attention_reader["rotary_embedding"].as<int>();
     attn_param_.rotary_embedding_base   = attention_reader["rope_theta"].as<float>(10000.0f);
+    attn_param_.attention_factor        = attention_reader["attention_factor"].as<float>(-1.f);
+    attn_param_.beta_fast               = attention_reader["beta_fast"].as<float>(32.f);
+    attn_param_.beta_slow               = attention_reader["beta_slow"].as<float>(1.f);
     attn_param_.rope_scaling_type       = attention_reader["rope_scaling_type"].as<std::string>("");
     attn_param_.rope_scaling_factor     = attention_reader["rope_scaling_factor"].as<float>(0.f);
     attn_param_.low_freq_factor         = attention_reader["low_freq_factor"].as<float>(1.0);
@@ -298,6 +308,8 @@ LlamaTritonModel<T>::LlamaTritonModel(size_t      tensor_para_size,
     moe_param_.expert_num        = model_reader["expert_num"].as<int>(0);
     moe_param_.experts_per_token = model_reader["experts_per_token"].as<int>(0);
     moe_param_.inter_size        = model_reader["expert_inter_size"].as<int>(0);
+    moe_param_.shared_gate       = model_reader["moe_shared_gate"].as<int>(0);
+    moe_param_.norm_topk         = model_reader["moe_norm_topk"].as<bool>(false);
 
     handleMissingParams();
 
@@ -412,6 +424,7 @@ void LlamaTritonModel<T>::createSharedWeights(int device_id, int rank)
                                                                model_param_.hidden_units,
                                                                model_param_.inter_size,
                                                                model_param_.vocab_size,
+                                                               model_param_.embedding_size,
                                                                model_param_.layer_num,
                                                                attn_bias_,
                                                                weight_type_,
