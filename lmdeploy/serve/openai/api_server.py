@@ -318,7 +318,7 @@ def logit_bias_logits_processor(logit_bias: Union[Dict[int, float],
     dependencies=[Depends(check_api_key),
                   Depends(add_default_model_name)])
 async def chat_completions_v1(request: ChatCompletionRequest,
-                              raw_request: Request = None):
+                              raw_request: Request = None) -> Union[ChatCompletionResponse, ErrorResponse]:
     """Completion API similar to OpenAI's API.
 
     Refer to  `https://platform.openai.com/docs/api-reference/chat/create`
@@ -992,7 +992,7 @@ async def chat_interactive_v1(request: GenerateRequest,
     dependencies=[Depends(check_api_key),
                   Depends(add_default_model_name)])
 async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
-                                    raw_request: Request = None):
+                                    raw_request: Request = None) -> Union[BatchChatCompletionResponse, ErrorResponse]:
     """Completion API similar to OpenAI's API.
 
     Refer to  `https://platform.openai.com/docs/api-reference/chat/create`
