@@ -4,10 +4,6 @@ from dataclasses import dataclass, field
 from itertools import count
 from typing import List, Literal, Optional, Tuple, Union
 
-import gradio as gr
-from packaging.version import Version, parse
-from PIL import Image
-
 from lmdeploy.messages import (GenerationConfig, PytorchEngineConfig,
                                TurbomindEngineConfig, VisionConfig)
 from lmdeploy.model import ChatTemplateConfig
@@ -15,6 +11,10 @@ from lmdeploy.pytorch.engine.request import _run_until_complete
 from lmdeploy.serve.gradio.constants import CSS, THEME, disable_btn, enable_btn
 from lmdeploy.tokenizer import DetokenizeState
 from lmdeploy.utils import get_logger
+from packaging.version import Version, parse
+from PIL import Image
+
+import gradio as gr
 
 BATCH_SIZE = 32
 logger = get_logger('lmdeploy')

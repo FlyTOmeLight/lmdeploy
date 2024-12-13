@@ -1,14 +1,16 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Dict, List, Optional, Union
 
-import numpy as np
+import PIL
+import PIL.Image
 
+import numpy as np
 from lmdeploy.pytorch.check_env import try_import_deeplink
 from lmdeploy.serve.async_engine import AsyncEngine
 from lmdeploy.utils import get_logger
 from lmdeploy.vl.constants import IMAGE_DUMMY_TOKEN_INDEX, IMAGE_TOKEN
 from lmdeploy.vl.engine import ImageEncoder
-from lmdeploy.vl.templates import VLPromptType, get_vl_prompt_template
+from lmdeploy.vl.templates import VLPromptType, get_vl_prompt_template, load_image
 
 logger = get_logger('lmdeploy')
 
@@ -42,9 +44,45 @@ class VLAsyncEngine(AsyncEngine):
             _prompts = [
                 self.vl_prompt_template.prompt_to_messages(x) for x in prompts
             ]
+        elif isinstance(prompts[0], List):
+            _prompts = self._process_item(prompts)
         else:
             _prompts = prompts
         return _prompts
+
+    def _process_item(self, item):
+        if isinstance(item, list):
+            return [self._process_item(i) for i in item]
+
+        if isinstance(item, dict):
+            if 'content' in item:
+                if isinstance(item['content'], list):
+                    item['content'] = [
+                        self._process_message(m) for m in item['content']
+                    ]
+                else:
+                    item['content'] = self._process_message(item['content'])
+                return item
+
+            return item
+
+    @staticmethod
+    def _process_message(message):
+        if isinstance(message, dict):
+            if message.get('type') == 'image_url' or message.get(
+                    'type') == 'image_data':
+                # Convert image URL to PIL Image
+                image_url = message['image_url']['url'] if message.get(
+                    'type') == 'image_url' else message['image_data']["data"]
+                image = None
+                if isinstance(image_url, PIL.Image.Image):
+                    image = image_url
+                if isinstance(image_url, str):
+                    image = load_image(image_url)
+
+                return {'type': 'image_data', 'image_data': {'data': image}}
+
+        return message
 
     async def _get_prompt_input(self,
                                 prompt: Dict,
@@ -143,12 +181,19 @@ class VLAsyncEngine(AsyncEngine):
         results['prompt'] = decorated
         return results
 
-    def batch_infer(self, prompts: Union[VLPromptType, List[Dict],
-                                         List[VLPromptType], List[List[Dict]]],
-                    **kwargs):
+    async def extra_batch_infer(self,
+                                prompts: Union[List[str], str, List[Dict],
+                                               List[List[Dict]]], **kwargs):
+        """Extra Inference a batch of prompts."""
+        prompts = self._convert_prompts(prompts)
+        return await super().batch_infer(prompts, **kwargs)
+
+    async def batch_infer(self, prompts: Union[VLPromptType, List[Dict],
+                                               List[VLPromptType],
+                                               List[List[Dict]]], **kwargs):
         """Inference a batch of prompts."""
         prompts = self._convert_prompts(prompts)
-        return super().batch_infer(prompts, **kwargs)
+        return await super().batch_infer(prompts, **kwargs)
 
     def stream_infer(self, prompts: Union[VLPromptType, List[Dict],
                                           List[VLPromptType],

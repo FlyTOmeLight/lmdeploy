@@ -1,18 +1,18 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import asyncio
 import copy
+import json
 import os
 import time
 from functools import partial
 from http import HTTPStatus
-from typing import AsyncGenerator, Dict, List, Literal, Optional, Union
+from typing import AsyncGenerator, Dict, List, Literal, Optional, Union, Callable
 
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
-
 from lmdeploy.archs import get_task
 from lmdeploy.messages import (GenerationConfig, LogitsProcessor,
                                PytorchEngineConfig, TurbomindEngineConfig)
@@ -31,6 +31,10 @@ from lmdeploy.serve.openai.protocol import (  # noqa: E501
 from lmdeploy.tokenizer import DetokenizeState, Tokenizer
 from lmdeploy.utils import get_logger
 
+from lmdeploy.serve.openai.extra_protocol import (
+    BatchChatCompletionRequest, BatchChatCompletionResponseChoice,
+    BatchChatCompletionResponse)
+
 logger = get_logger('lmdeploy')
 
 
@@ -43,10 +47,42 @@ class VariableInterface:
     # following are for registering to proxy server
     proxy_url: Optional[str] = None
     api_server_url: Optional[str] = None
+    depends: Optional[List[Depends]] = None
 
 
 router = APIRouter()
 get_bearer_token = HTTPBearer(auto_error=False)
+
+async def add_default_model_name(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400,
+                            detail={
+                                'error': {
+                                    'message': 'Please request with json!',
+                                    'type': 'invalid_request_error',
+                                    'param': None,
+                                    'code': 'invalid_json',
+                                }
+                            })
+
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400,
+                            detail={
+                                'error': {
+                                    'message':
+                                    'Please request with json object!',
+                                    'type': 'invalid_request_error',
+                                    'param': None,
+                                    'code': 'invalid_json_object',
+                                }
+                            })
+
+    if 'model' not in body or len(body['model']) == 0:
+        body['model'] = VariableInterface.async_engine.model_name
+
+    return body
 
 
 async def check_api_key(
@@ -88,7 +124,7 @@ def get_model_list():
     return model_names
 
 
-@router.get('/v1/models', dependencies=[Depends(check_api_key)])
+@router.get('/v1/models', dependencies=VariableInterface.depends)
 def available_models():
     """Show available models."""
     model_cards = []
@@ -277,9 +313,11 @@ def logit_bias_logits_processor(logit_bias: Union[Dict[int, float],
     return partial(_logit_bias_processor, clamped_logit_bias)
 
 
-@router.post('/v1/chat/completions', dependencies=[Depends(check_api_key)])
+@router.post(
+    '/v1/chat/completions',
+    dependencies=VariableInterface.depends)
 async def chat_completions_v1(request: ChatCompletionRequest,
-                              raw_request: Request = None):
+                              raw_request: Request = None) -> Union[ChatCompletionResponse, ErrorResponse]:
     """Completion API similar to OpenAI's API.
 
     Refer to  `https://platform.openai.com/docs/api-reference/chat/create`
@@ -552,7 +590,9 @@ async def chat_completions_v1(request: ChatCompletionRequest,
     return response
 
 
-@router.post('/v1/completions', dependencies=[Depends(check_api_key)])
+@router.post(
+    '/v1/completions',
+    dependencies=VariableInterface.depends)
 async def completions_v1(request: CompletionRequest,
                          raw_request: Request = None):
     """Completion API similar to OpenAI's API.
@@ -768,7 +808,7 @@ async def create_embeddings(request: EmbeddingsRequest,
                                  'Unsupported by turbomind.')
 
 
-@router.post('/v1/encode', dependencies=[Depends(check_api_key)])
+@router.post('/v1/encode', dependencies=VariableInterface.depends)
 async def encode(request: EncodeRequest, raw_request: Request = None):
     """Encode prompts.
 
@@ -799,7 +839,7 @@ async def encode(request: EncodeRequest, raw_request: Request = None):
         return EncodeResponse(input_ids=encoded, length=length)
 
 
-@router.post('/v1/chat/interactive', dependencies=[Depends(check_api_key)])
+@router.post('/v1/chat/interactive', dependencies=VariableInterface.depends)
 async def chat_interactive_v1(request: GenerateRequest,
                               raw_request: Request = None):
     """Generate completion for the request.
@@ -946,6 +986,186 @@ async def chat_interactive_v1(request: GenerateRequest,
         return JSONResponse(ret)
 
 
+@router.post(
+    '/v1/chat/batch_completions',
+    dependencies=VariableInterface.depends)
+async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
+                                    raw_request: Request = None) -> Union[BatchChatCompletionResponse, ErrorResponse]:
+    """Completion API similar to OpenAI's API.
+
+    Refer to  `https://platform.openai.com/docs/api-reference/chat/create`
+    for the API specification.
+
+    The request should be a JSON object with the following fields:
+    - model: model name. Available from /v1/models.
+    - messages: string prompt or chat history in OpenAI format. Chat history
+        example: `[[{"role": "user", "content": "hi"}]]`.
+    - temperature (float): to modulate the next token probability
+    - top_p (float): If set to float < 1, only the smallest set of most
+        probable tokens with probabilities that add up to top_p or higher
+        are kept for generation.
+    - n (int): How many chat completion choices to generate for each input
+        message. **Only support one here**.
+    - stream: whether to stream the results or not. Default to false.
+    - max_tokens (int | None): output token nums. Default to None.
+    - repetition_penalty (float): The parameter for repetition penalty.
+        1.0 means no penalty
+    - stop (str | List[str] | None): To stop generating further
+        tokens. Only accept stop words that's encoded to one token idex.
+    - response_format (Dict | None): Only pytorch backend support formatting
+        response. Examples: `{"type": "json_schema", "json_schema": {"name":
+        "test","schema": {"properties": {"name": {"type": "string"}},
+        "required": ["name"], "type": "object"}}}`
+        or `{"type": "regex_schema", "regex_schema": "call me [A-Za-z]{1,10}"}`
+    - logit_bias (Dict): Bias to logits. Only supported in pytorch engine.
+    - tools (List): A list of tools the model may call. Currently, only
+        internlm2 functions are supported as a tool. Use this to specify a
+        list of functions for which the model can generate JSON inputs.
+    - tool_choice (str | object): Controls which (if any) tool is called by
+        the model. `none` means the model will not call any tool and instead
+        generates a message. Specifying a particular tool via {"type":
+        "function", "function": {"name": "my_function"}} forces the model to
+        call that tool. `auto` or `required` will put all the tools information
+        to the model.
+
+    Additional arguments supported by LMDeploy:
+    - top_k (int): The number of the highest probability vocabulary
+        tokens to keep for top-k-filtering
+    - ignore_eos (bool): indicator for ignoring eos
+    - skip_special_tokens (bool): Whether or not to remove special tokens
+        in the decoding. Default to be True.
+    - min_new_tokens (int): To generate at least numbers of tokens.
+    - min_p (float): Minimum token probability, which will be scaled by the
+        probability of the most likely token. It must be a value between
+        0 and 1. Typical values are in the 0.01-0.2 range, comparably
+        selective as setting `top_p` in the 0.99-0.8 range (use the
+        opposite of normal `top_p` values)
+
+    Currently we do not support the following features:
+    - presence_penalty (replaced with repetition_penalty)
+    - frequency_penalty (replaced with repetition_penalty)
+    """
+    error_check_ret = await check_request(request)
+    if error_check_ret is not None:
+        return error_check_ret
+
+    model_name = request.model
+    adapter_name = None
+    if model_name != VariableInterface.async_engine.model_name:
+        adapter_name = model_name  # got a adapter name
+    created_time = int(time.time())
+
+    if isinstance(request.stop, str):
+        request.stop = [request.stop]
+
+    gen_logprobs, logits_processors = None, None
+    if request.logprobs and request.top_logprobs:
+        gen_logprobs = request.top_logprobs
+    response_format = None
+    if request.response_format and request.response_format.type != 'text':
+        if VariableInterface.async_engine.backend != 'pytorch':
+            return create_error_response(
+                HTTPStatus.BAD_REQUEST,
+                'only pytorch backend can use response_format now')
+        response_format = request.response_format.model_dump()
+
+    if request.logit_bias is not None:
+        try:
+            logits_processors = [
+                logit_bias_logits_processor(
+                    request.logit_bias,
+                    VariableInterface.async_engine.tokenizer.model)
+            ]
+        except Exception as e:
+            return create_error_response(HTTPStatus.BAD_REQUEST, str(e))
+
+    random_seed = request.seed if request.seed else None
+
+    gen_config = GenerationConfig(
+        max_new_tokens=request.max_tokens,
+        do_sample=True,
+        logprobs=gen_logprobs,
+        top_k=request.top_k,
+        top_p=request.top_p,
+        temperature=request.temperature,
+        repetition_penalty=request.repetition_penalty,
+        ignore_eos=request.ignore_eos,
+        stop_words=request.stop,
+        skip_special_tokens=request.skip_special_tokens,
+        response_format=response_format,
+        logits_processors=logits_processors,
+        min_new_tokens=request.min_new_tokens,
+        min_p=request.min_p,
+        random_seed=random_seed)
+
+    tools = None
+    if request.tools and request.tool_choice != 'none':
+        gen_config.skip_special_tokens = False
+        if request.stream is True:
+            logger.warning('Set stream to False for tools')
+            request.stream = False
+        # internlm2 only uses contents inside function regardless of 'type'
+        if not isinstance(request.tool_choice, str):
+            tools = [
+                item.function.model_dump() for item in request.tools
+                if item.function.name == request.tool_choice.function.name
+            ]
+        else:
+            tools = [item.function.model_dump() for item in request.tools]
+
+    logger.info(f'batch chat completion request: {request.messages}')
+
+    resp = await VariableInterface.async_engine.extra_batch_infer(
+        prompts=request.messages,
+        gen_config=gen_config,
+        do_preprocess=True,
+        adapter_name=adapter_name,
+        use_tqdm=False)
+
+    sum_prompt_tokens = 0
+    sum_completion_tokens = 0
+    sum_total_tokens = 0
+    choices = []
+    for i, item in enumerate(resp):
+        logprobs = None
+        if gen_logprobs and len(item.logprobs):
+            logprobs = _create_chat_completion_logprobs(
+                VariableInterface.async_engine.tokenizer, resp.token_ids,
+                item.logprobs)
+
+        choice_data = BatchChatCompletionResponseChoice(
+            index=item.index,
+            message=ChatMessage(role='assistant', content=item.text),
+            logprobs=logprobs,
+            finish_reason=item.finish_reason,
+        )
+        total_tokens = sum([item.input_token_len, item.generate_token_len])
+        sum_prompt_tokens += item.input_token_len
+        sum_completion_tokens += item.generate_token_len
+        sum_total_tokens += total_tokens
+        usage = UsageInfo(
+            prompt_tokens=item.input_token_len,
+            completion_tokens=item.generate_token_len,
+            total_tokens=total_tokens,
+        )
+        choice_data.usage = usage
+        choices.append(choice_data)
+
+    response = BatchChatCompletionResponse(
+        id=str(request.session_id),
+        created=created_time,
+        model=model_name,
+        choices=choices,
+        usage=UsageInfo(
+            prompt_tokens=sum_prompt_tokens,
+            completion_tokens=sum_completion_tokens,
+            total_tokens=sum_total_tokens,
+        ),
+    )
+
+    return response
+
+
 @router.on_event('startup')
 async def startup_event():
     if VariableInterface.proxy_url is None:
@@ -972,6 +1192,34 @@ async def startup_event():
     except Exception as e:
         print(f'Service registration failed: {e}')
 
+def get_depends():
+    depends = []
+
+    from bceserver.middleware.impersonate import get_impersonate_dependency
+    depends.append(Depends(get_impersonate_dependency()))
+
+    from bceserver.conf import new_config_from_env
+    from bceserver.auth import get_authenticate_dependency
+    config = new_config_from_env()
+    depends.append(Depends(get_authenticate_dependency(config)))
+
+    from bceiam.bce_client_configuration import BceClientConfiguration
+    subs_endpoint = os.environ.get('SUBSCRIPTION_ENDPOINT', '')
+    equity_id = os.environ.get('SUBSCRIPTION_EQUITY_ID', 'Endpoint/Multimodal/Count')
+    if len(subs_endpoint) > 0:
+        from subscriptionv1.middleware import get_subscription_dependency
+        subs_depends = get_subscription_dependency(BceClientConfiguration(endpoint=subs_endpoint), equity_id)
+        depends.append(Depends(subs_depends))
+
+    resource_endpoint = os.environ.get('RESOURCE_ENDPOINT', '')
+    metrics = os.environ.get('RESOURCE_METRICS', 'multimodal_count')
+    if len(resource_endpoint) > 0:
+        from resourcev1.middleware import get_resource_dependency
+        resource_depends = get_resource_dependency(BceClientConfiguration(endpoint=resource_endpoint), metrics)
+        depends.append(Depends(resource_depends))
+
+    return depends
+
 
 def serve(model_path: str,
           model_name: Optional[str] = None,
@@ -985,6 +1233,7 @@ def serve(model_path: str,
           allow_credentials: bool = True,
           allow_methods: List[str] = ['*'],
           allow_headers: List[str] = ['*'],
+          allow_auth: bool = False,
           log_level: str = 'ERROR',
           api_keys: Optional[Union[List[str], str]] = None,
           ssl: bool = False,
@@ -1025,6 +1274,7 @@ def serve(model_path: str,
         allow_credentials (bool): whether to allow credentials for CORS
         allow_methods (List[str]): a list of allowed HTTP methods for CORS
         allow_headers (List[str]): a list of allowed HTTP headers for CORS
+        allow_auth (bool): whether to allow authentication for yijian
         log_level(str): set log level whose value among [CRITICAL, ERROR,
             WARNING, INFO, DEBUG]
         api_keys (List[str] | str | None): Optional list of API keys. Accepts
@@ -1063,6 +1313,11 @@ def serve(model_path: str,
         if isinstance(api_keys, str):
             api_keys = api_keys.split(',')
         VariableInterface.api_keys = api_keys
+
+    if allow_auth:
+        VariableInterface.depends = get_depends()
+    VariableInterface.depends.append(Depends(add_default_model_name))
+
     ssl_keyfile, ssl_certfile, http_or_https = None, None, 'http'
     if ssl:
         ssl_keyfile = os.environ['SSL_KEYFILE']
@@ -1088,6 +1343,7 @@ def serve(model_path: str,
             f'HINT:    Please open \033[93m\033[1m{http_or_https}://'
             f'{server_name}:{server_port}\033[0m in a browser for detailed api'
             ' usage!!!')
+
     uvicorn.run(app=app,
                 host=server_name,
                 port=server_port,

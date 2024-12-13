@@ -505,3 +505,11 @@ class ArgumentHelper:
                                    default=False,
                                    help='Whether to enable eager mode. '
                                    'If True, cuda graph would be disabled')
+
+    @staticmethod
+    def allow_auth(parser):
+        return parser.add_argument('--allow-auth',
+                                   action='store_true',
+                                   default=False,
+                                   help="Whether to allow authentication. If True, open yijian "
+                                        "authentication middleware.")

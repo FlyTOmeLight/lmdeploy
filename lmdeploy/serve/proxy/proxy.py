@@ -17,8 +17,6 @@ import yaml
 from fastapi import BackgroundTasks, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
-
 from lmdeploy.serve.openai.api_server import (check_api_key,
                                               create_error_response)
 from lmdeploy.serve.openai.protocol import (  # noqa: E501
@@ -28,6 +26,7 @@ from lmdeploy.serve.proxy.constants import (API_TIMEOUT_LEN,
                                             LATENCY_DEEQUE_LEN, ErrorCodes,
                                             Strategy, err_msg)
 from lmdeploy.utils import get_logger
+from pydantic import BaseModel, Field
 
 logger = get_logger('lmdeploy')
 
