@@ -47,6 +47,11 @@ def quantization(config,
     else:
         quantization_cmd += ' --batch-size 32'
 
+    if not is_bf16_supported():
+        quantization_cmd += ' --batch-size 8'
+    else:
+        quantization_cmd += ' --batch-size 32'
+
     with open(quantization_log, 'w') as f:
         # remove existing folder
         subprocess.run([' '.join(['rm -rf', quantization_model_path])],

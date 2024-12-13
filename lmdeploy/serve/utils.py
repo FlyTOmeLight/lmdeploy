@@ -4,9 +4,8 @@ from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import torch
-from torch.nn.utils.rnn import pad_sequence
-
 from lmdeploy.utils import get_logger
+from torch.nn.utils.rnn import pad_sequence
 
 logger = get_logger('lmdeploy')
 

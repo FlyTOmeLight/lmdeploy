@@ -1,3 +1,9 @@
 gradio
 protobuf
 tritonclient[grpc]
+## add by yijian
+bceserver
+bceiam
+tenantv1
+yjresource
+yjsubscription
