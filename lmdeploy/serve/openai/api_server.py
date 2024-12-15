@@ -1198,10 +1198,10 @@ def get_depends():
     from bceserver.middleware.impersonate import get_impersonate_dependency
     depends.append(Depends(get_impersonate_dependency()))
 
-    from bceserver.conf import new_config_from_env
-    from bceserver.auth import get_authenticate_dependency
-    config = new_config_from_env()
-    depends.append(Depends(get_authenticate_dependency(config)))
+    # from bceserver.conf import new_config_from_env
+    # from bceserver.auth import get_authenticate_dependency
+    # config = new_config_from_env()
+    # depends.append(Depends(get_authenticate_dependency(config)))
 
     from bceiam.bce_client_configuration import BceClientConfiguration
     subs_endpoint = os.environ.get('SUBSCRIPTION_ENDPOINT', '')

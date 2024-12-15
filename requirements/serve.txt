@@ -2,7 +2,7 @@ gradio
 protobuf
 tritonclient[grpc]
 ## add by yijian
-bceidaas==0.0.1.dev0
+bceidaas==0.0.1.dev2
 bceserver
 tenantv1
 yjresource
