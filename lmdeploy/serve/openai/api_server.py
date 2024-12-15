@@ -1,12 +1,11 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import asyncio
 import copy
-import json
 import os
 import time
 from functools import partial
 from http import HTTPStatus
-from typing import AsyncGenerator, Dict, List, Literal, Optional, Union, Callable
+from typing import AsyncGenerator, Dict, List, Literal, Optional, Union
 
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
@@ -18,6 +17,9 @@ from lmdeploy.messages import (GenerationConfig, LogitsProcessor,
                                PytorchEngineConfig, TurbomindEngineConfig)
 from lmdeploy.model import ChatTemplateConfig
 from lmdeploy.serve.async_engine import AsyncEngine
+from lmdeploy.serve.openai.extra_protocol import (
+    BatchChatCompletionRequest, BatchChatCompletionResponseChoice,
+    BatchChatCompletionResponse)
 from lmdeploy.serve.openai.protocol import (  # noqa: E501
     ChatCompletionRequest, ChatCompletionResponse,
     ChatCompletionResponseChoice, ChatCompletionResponseStreamChoice,
@@ -31,10 +33,6 @@ from lmdeploy.serve.openai.protocol import (  # noqa: E501
 from lmdeploy.tokenizer import DetokenizeState, Tokenizer
 from lmdeploy.utils import get_logger
 
-from lmdeploy.serve.openai.extra_protocol import (
-    BatchChatCompletionRequest, BatchChatCompletionResponseChoice,
-    BatchChatCompletionResponse)
-
 logger = get_logger('lmdeploy')
 
 
@@ -47,8 +45,35 @@ class VariableInterface:
     # following are for registering to proxy server
     proxy_url: Optional[str] = None
     api_server_url: Optional[str] = None
-    depends: Optional[List[Depends]] = None
+    depends: List[Depends] = []
 
+def get_depends():
+    depends = []
+
+    from bceserver.middleware.impersonate import get_impersonate_dependency
+    depends.append(Depends(get_impersonate_dependency()))
+
+    # from bceserver.conf import new_config_from_env
+    # from bceserver.auth import get_authenticate_dependency
+    # config = new_config_from_env()
+    # depends.append(Depends(get_authenticate_dependency(config)))
+
+    from bceiam.bce_client_configuration import BceClientConfiguration
+    subs_endpoint = os.environ.get('SUBSCRIPTION_ENDPOINT', '')
+    equity_id = os.environ.get('SUBSCRIPTION_EQUITY_ID', 'Endpoint/Multimodal/Count')
+    if len(subs_endpoint) > 0:
+        from subscriptionv1.middleware import get_subscription_dependency
+        subs_depends = get_subscription_dependency(BceClientConfiguration(endpoint=subs_endpoint), equity_id)
+        depends.append(Depends(subs_depends))
+
+    resource_endpoint = os.environ.get('RESOURCE_ENDPOINT', '')
+    metrics = os.environ.get('RESOURCE_METRICS', 'multimodal_count')
+    if len(resource_endpoint) > 0:
+        from resourcev1.middleware import get_resource_dependency
+        resource_depends = get_resource_dependency(BceClientConfiguration(endpoint=resource_endpoint), metrics)
+        depends.append(Depends(resource_depends))
+
+    return depends
 
 router = APIRouter()
 get_bearer_token = HTTPBearer(auto_error=False)
@@ -84,6 +109,11 @@ async def add_default_model_name(request: Request):
 
     return body
 
+
+if os.environ.get("AUTH_ENABLED", "false").lower() == "true":
+    VariableInterface.depends = get_depends()
+
+VariableInterface.depends.append(Depends(add_default_model_name))
 
 async def check_api_key(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(get_bearer_token),
@@ -1192,34 +1222,6 @@ async def startup_event():
     except Exception as e:
         print(f'Service registration failed: {e}')
 
-def get_depends():
-    depends = []
-
-    from bceserver.middleware.impersonate import get_impersonate_dependency
-    depends.append(Depends(get_impersonate_dependency()))
-
-    # from bceserver.conf import new_config_from_env
-    # from bceserver.auth import get_authenticate_dependency
-    # config = new_config_from_env()
-    # depends.append(Depends(get_authenticate_dependency(config)))
-
-    from bceiam.bce_client_configuration import BceClientConfiguration
-    subs_endpoint = os.environ.get('SUBSCRIPTION_ENDPOINT', '')
-    equity_id = os.environ.get('SUBSCRIPTION_EQUITY_ID', 'Endpoint/Multimodal/Count')
-    if len(subs_endpoint) > 0:
-        from subscriptionv1.middleware import get_subscription_dependency
-        subs_depends = get_subscription_dependency(BceClientConfiguration(endpoint=subs_endpoint), equity_id)
-        depends.append(Depends(subs_depends))
-
-    resource_endpoint = os.environ.get('RESOURCE_ENDPOINT', '')
-    metrics = os.environ.get('RESOURCE_METRICS', 'multimodal_count')
-    if len(resource_endpoint) > 0:
-        from resourcev1.middleware import get_resource_dependency
-        resource_depends = get_resource_dependency(BceClientConfiguration(endpoint=resource_endpoint), metrics)
-        depends.append(Depends(resource_depends))
-
-    return depends
-
 
 def serve(model_path: str,
           model_name: Optional[str] = None,
@@ -1233,7 +1235,6 @@ def serve(model_path: str,
           allow_credentials: bool = True,
           allow_methods: List[str] = ['*'],
           allow_headers: List[str] = ['*'],
-          allow_auth: bool = False,
           log_level: str = 'ERROR',
           api_keys: Optional[Union[List[str], str]] = None,
           ssl: bool = False,
@@ -1274,7 +1275,6 @@ def serve(model_path: str,
         allow_credentials (bool): whether to allow credentials for CORS
         allow_methods (List[str]): a list of allowed HTTP methods for CORS
         allow_headers (List[str]): a list of allowed HTTP headers for CORS
-        allow_auth (bool): whether to allow authentication for yijian
         log_level(str): set log level whose value among [CRITICAL, ERROR,
             WARNING, INFO, DEBUG]
         api_keys (List[str] | str | None): Optional list of API keys. Accepts
@@ -1313,10 +1313,6 @@ def serve(model_path: str,
         if isinstance(api_keys, str):
             api_keys = api_keys.split(',')
         VariableInterface.api_keys = api_keys
-
-    if allow_auth:
-        VariableInterface.depends = get_depends()
-    VariableInterface.depends.append(Depends(add_default_model_name))
 
     ssl_keyfile, ssl_certfile, http_or_https = None, None, 'http'
     if ssl:
