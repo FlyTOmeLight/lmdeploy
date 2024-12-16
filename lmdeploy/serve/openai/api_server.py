@@ -58,7 +58,7 @@ def get_depends():
     # config = new_config_from_env()
     # depends.append(Depends(get_authenticate_dependency(config)))
 
-    from bceiam.bce_client_configuration import BceClientConfiguration
+    from bceidaas.bce_client_configuration import BceClientConfiguration
     subs_endpoint = os.environ.get('SUBSCRIPTION_ENDPOINT', '')
     equity_id = os.environ.get('SUBSCRIPTION_EQUITY_ID', 'Endpoint/Multimodal/Count')
     if len(subs_endpoint) > 0:
