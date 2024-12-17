@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import asyncio
 import copy
+import http
 import os
 import time
 from functools import partial
@@ -79,35 +80,36 @@ router = APIRouter()
 get_bearer_token = HTTPBearer(auto_error=False)
 
 async def add_default_model_name(request: Request):
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400,
-                            detail={
-                                'error': {
-                                    'message': 'Please request with json!',
-                                    'type': 'invalid_request_error',
-                                    'param': None,
-                                    'code': 'invalid_json',
-                                }
-                            })
+    if request.method == http.HTTPMethod.POST:
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400,
+                                detail={
+                                    'error': {
+                                        'message': 'Please request with json!',
+                                        'type': 'invalid_request_error',
+                                        'param': None,
+                                        'code': 'invalid_json',
+                                    }
+                                })
 
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400,
-                            detail={
-                                'error': {
-                                    'message':
-                                    'Please request with json object!',
-                                    'type': 'invalid_request_error',
-                                    'param': None,
-                                    'code': 'invalid_json_object',
-                                }
-                            })
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400,
+                                detail={
+                                    'error': {
+                                        'message':
+                                        'Please request with json object!',
+                                        'type': 'invalid_request_error',
+                                        'param': None,
+                                        'code': 'invalid_json_object',
+                                    }
+                                })
 
-    if 'model' not in body or len(body['model']) == 0:
-        body['model'] = VariableInterface.async_engine.model_name
+        if 'model' not in body or len(body['model']) == 0:
+            body['model'] = VariableInterface.async_engine.model_name
 
-    return body
+        return body
 
 
 if os.environ.get("AUTH_ENABLED", "false").lower() == "true":
@@ -154,7 +156,7 @@ def get_model_list():
     return model_names
 
 
-@router.get('/v1/models', dependencies=VariableInterface.depends)
+@router.get('/v1/models')
 def available_models():
     """Show available models."""
     model_cards = []
