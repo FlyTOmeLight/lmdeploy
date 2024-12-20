@@ -355,7 +355,7 @@ def filter_text(text: str) -> str:
     """
     filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技']
 
-    sentences = re.split('([。！？\n])', text)
+    sentences = re.split('([,，。！？\n])', text)
     filtered_sentences = []
 
     i = 0
