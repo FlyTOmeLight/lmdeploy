@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import asyncio
+import re
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -346,3 +347,35 @@ class LogitsMixin:
         loss = flat_loss_matrix.sum(dim=-1).cpu()
         target_count = target_mask.sum(dim=-1).cpu()
         return loss, target_count
+
+
+def filter_text(text: str) -> str:
+    """
+    Filter out sensitive information in the text.
+    """
+    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技']
+
+    sentences = re.split('([。！？\n])', text)
+    filtered_sentences = []
+
+    i = 0
+    while i < len(sentences):
+        sentence = sentences[i]
+
+        if sentence:
+            should_filter = any(keyword in sentence for keyword in filter_keywords)
+
+            if not should_filter:
+                processed_sentence = re.sub(
+                    r'internvl|InternVL|书生多模态大模型',
+                    '一见大模型',
+                    sentence,
+                    flags=re.IGNORECASE
+                )
+
+                filtered_sentences.append(processed_sentence)
+                if i + 1 < len(sentences):
+                    filtered_sentences.append(sentences[i + 1])
+        i += 2
+
+    return ''.join(filtered_sentences)
