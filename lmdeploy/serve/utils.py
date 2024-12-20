@@ -353,7 +353,7 @@ def filter_text(text: str) -> str:
     """
     Filter out sensitive information in the text.
     """
-    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技']
+    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技', 'Shanghai AI Lab', 'SenseTime']
 
     sentences = re.split('([,，。！？\n])', text)
     filtered_sentences = []
