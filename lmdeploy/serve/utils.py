@@ -368,7 +368,7 @@ def filter_text(text: str) -> str:
             if not should_filter:
                 processed_sentence = re.sub(
                     r'internvl|InternVL|书生多模态大模型',
-                    '一见大模型',
+                    'Yijian',
                     sentence,
                     flags=re.IGNORECASE
                 )
