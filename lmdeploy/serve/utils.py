@@ -402,11 +402,11 @@ def filter_text(text: str) -> str:
         if filtered_sentences[1] in ["，",","]:
             filtered_sentences[1] = "。"
 
+    if not filtered_sentences:
+        filtered_sentences.append(YIJIAN_SYSTEM_PROMPT)
+
     if filtered_sentences[-1] in ["，", ","]:
         filtered_sentences[-1] = "。"
-
-    if not filtered_sentences:
-        return YIJIAN_SYSTEM_PROMPT
 
     result = ''.join(filtered_sentences)
     # Replace consecutive punctuation
