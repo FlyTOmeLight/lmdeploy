@@ -351,11 +351,34 @@ class LogitsMixin:
 
 YIJIAN_SYSTEM_PROMPT = "我是来自百度的多模态大模型一见大模型，英文名是Yijian。"
 
+
 def filter_text(text: str) -> str:
     """
-    Filter out sensitive information in the text.
+    Filter out sensitive information and format text according to requirements.
+
+    Args:
+        text (str): Input text to be filtered
+
+    Returns:
+        str: Filtered and formatted text
     """
-    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技', 'Shanghai AI Lab', 'SenseTime']
+    # Handle special cases first
+    logger.info(f"Original response content: {text}")
+    text = text.strip()
+
+    # Handle numeric or JSON-like inputs
+    if text.isdigit():
+        return text
+    if text.startswith('{') and text.endswith('}'):
+        return text
+
+    # Filter sensitive keywords
+    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技',
+                       'Shanghai AI Lab', 'SenseTime']
+
+    # Return system prompt if text contains only filtered content
+    if all(keyword in text for keyword in filter_keywords):
+        return YIJIAN_SYSTEM_PROMPT
 
     sentences = re.split('([,，。！？\n])', text)
     filtered_sentences = []
@@ -365,22 +388,23 @@ def filter_text(text: str) -> str:
         sentence = sentences[i]
 
         if sentence:
+            # Check if sentence should be filtered
             should_filter = any(keyword in sentence for keyword in filter_keywords)
 
             if not should_filter:
+                # Replace model names with Yijian
                 processed_sentence = re.sub(
-                    r'internvl|InternVL|书生多模态大模型|一见',
+                    r'internvl|InternVL|书生多模态大模型',
                     'Yijian',
                     sentence,
                     flags=re.IGNORECASE
                 )
 
-                # Clean up any existing numbers at start
+                # Clean up numbering
                 cleaned_sentence = re.sub(r'^\d+\.', '', processed_sentence)
 
-                # For first non-empty sentence
+                # Format first sentence
                 if not filtered_sentences:
-                    # If it doesn't contain any introduction
                     if not re.search(r'我是(Yijian|一见)', cleaned_sentence):
                         filtered_sentences.append(f"1.我是Yijian，{cleaned_sentence}")
                     else:
@@ -398,17 +422,55 @@ def filter_text(text: str) -> str:
 
         i += 2
 
-    if len(filtered_sentences) == 2 and re.search(r'我是(Yijian|一见)$', filtered_sentences[0]):
-        if filtered_sentences[1] in ["，",","]:
-            filtered_sentences[1] = "。"
-
+    # Final formatting
     if not filtered_sentences:
-        filtered_sentences.append(YIJIAN_SYSTEM_PROMPT)
+        return YIJIAN_SYSTEM_PROMPT
 
+    # Fix ending punctuation
     if filtered_sentences[-1] in ["，", ","]:
         filtered_sentences[-1] = "。"
 
     result = ''.join(filtered_sentences)
-    # Replace consecutive punctuation
+
+    # Clean up consecutive punctuation
     result = re.sub(r'[,，。]{2,}', '。', result)
+
     return result
+
+if __name__ == '__main__':
+    # Test cases
+    text1 = "1.我是InternVL,是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------1----------------")
+    print(filter_text(text1))
+
+    text2 = "1.我是InternVL，是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。"
+    print("---------------2----------------")
+    print(filter_text(text2))
+
+    text3 = "1.我是InternVL,是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。"
+    print("---------------3----------------")
+    print(filter_text(text3))
+
+    text4 = "1.我是一见,是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------4----------------")
+    print(filter_text(text4))
+
+    text5 = "1.我是是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------5----------------")
+    print(filter_text(text5))
+
+    text6 = "1.我是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------6----------------")
+    print(filter_text(text6))
+
+    text7 = "1.我是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技"
+    print("---------------7----------------")
+    print(filter_text(text7))
+
+    text8 = "0"
+    print("---------------8----------------")
+    print(filter_text(text8))
+
+    text9 = "{\"图中是否有有人\":\"Yes\"}"
+    print("---------------9----------------")
+    print(filter_text(text9))
