@@ -1,6 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import asyncio
-import re
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -349,91 +348,99 @@ class LogitsMixin:
         return loss, target_count
 
 
-YIJIAN_SYSTEM_PROMPT = "我是来自百度的多模态大模型一见大模型，英文名是Yijian。"
 
+YIJIAN_SYSTEM_PROMPT = "我是来自百度的多模态大模型一见大模型，英文名是Yijian。"
 
 def filter_text(text: str) -> str:
     """
-    Filter out sensitive information and format text according to requirements.
-
-    Args:
-        text (str): Input text to be filtered
-
-    Returns:
-        str: Filtered and formatted text
+    Filter out sensitive information in the text.
     """
-    # Handle special cases first
+    # Special case handling for simple inputs
     logger.info(f"Original response content: {text}")
-    text = text.strip()
-
-    # Handle numeric or JSON-like inputs
-    if text.isdigit():
-        return text
-    if text.startswith('{') and text.endswith('}'):
+    if text.strip() in ['0'] or text.startswith('{'):
         return text
 
-    # Filter sensitive keywords
-    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技',
-                       'Shanghai AI Lab', 'SenseTime']
+    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技', 'Shanghai AI Lab', 'SenseTime']
 
-    # Return system prompt if text contains only filtered content
-    if all(keyword in text for keyword in filter_keywords):
+    import re
+    # Check if text contains any filter keywords and no second sentence
+    if any(keyword in text for keyword in filter_keywords) and not re.search(r'2\..*', text):
         return YIJIAN_SYSTEM_PROMPT
 
     sentences = re.split('([,，。！？\n])', text)
     filtered_sentences = []
 
     i = 0
+    sentence_count = 1
     while i < len(sentences):
         sentence = sentences[i]
 
         if sentence:
-            # Check if sentence should be filtered
             should_filter = any(keyword in sentence for keyword in filter_keywords)
 
             if not should_filter:
-                # Replace model names with Yijian
+                processed_sentence = sentence
                 processed_sentence = re.sub(
                     r'internvl|InternVL|书生多模态大模型',
                     'Yijian',
-                    sentence,
+                    processed_sentence,
                     flags=re.IGNORECASE
                 )
 
-                # Clean up numbering
-                cleaned_sentence = re.sub(r'^\d+\.', '', processed_sentence)
+                processed_sentence = re.sub(
+                    r'文心一言',
+                    '一见多模态大模型',
+                    processed_sentence
+                )
 
-                # Format first sentence
+                # Clean up any existing numbers at start
+                cleaned_sentence = re.sub(r'^\d+[\s.]*', '', processed_sentence)
+
+                # For first non-empty sentence
                 if not filtered_sentences:
-                    if not re.search(r'我是(Yijian|一见)', cleaned_sentence):
+                    if '百度' in cleaned_sentence:
+                        filtered_sentences.append(f"1.{cleaned_sentence}")
+                    elif not re.search(r'我是(Yijian|一见)', cleaned_sentence):
                         filtered_sentences.append(f"1.我是Yijian，{cleaned_sentence}")
                     else:
                         filtered_sentences.append(f"1.{cleaned_sentence}")
                 else:
-                    filtered_sentences.append(cleaned_sentence)
+                    # Add number prefix for new main sentences
+                    if i > 0 and sentences[i - 1] in ['。', '！', '？']:
+                        filtered_sentences.append(f"{sentence_count + 1}.{cleaned_sentence}")
+                        sentence_count += 1
+                    else:
+                        filtered_sentences.append(cleaned_sentence)
 
                 # Handle punctuation
                 if i + 1 < len(sentences):
                     next_punct = sentences[i + 1]
-                    if re.search(r'我是(Yijian|一见)$', filtered_sentences[-1]):
-                        filtered_sentences.append('，')
+                    if filtered_sentences and re.search(r'我是(Yijian|一见)$', filtered_sentences[-1]):
+                        filtered_sentences.append('。')
                     else:
                         filtered_sentences.append(next_punct)
 
         i += 2
 
-    # Final formatting
     if not filtered_sentences:
         return YIJIAN_SYSTEM_PROMPT
 
-    # Fix ending punctuation
-    if filtered_sentences[-1] in ["，", ","]:
-        filtered_sentences[-1] = "。"
+    # If only one sentence ends with "我是Yijian" or similar, add period
+    if len(filtered_sentences) == 2 and re.search(r'我是(Yijian|一见)$', filtered_sentences[0]):
+        filtered_sentences[1] = "。"
 
     result = ''.join(filtered_sentences)
 
-    # Clean up consecutive punctuation
+    # Ensure proper ending
+    if result[-1] in ["，", ","]:
+        result = result[:-1] + "。"
+
+    # Clean up punctuation
     result = re.sub(r'[,，。]{2,}', '。', result)
+    result = re.sub(r'。\s*', '。', result)
+
+    # Replace comma after "我是Yijian" or "我是一见" with period
+    result = re.sub(r'(我是(?:Yijian|一见))[,，]', r'\1。', result)
 
     return result
 
@@ -474,3 +481,7 @@ if __name__ == '__main__':
     text9 = "{\"图中是否有有人\":\"Yes\"}"
     print("---------------9----------------")
     print(filter_text(text9))
+
+    text10= "1. 我是百度文心一言，是由百度公司开发的一款基于深度学习技术的自然语言处理模型。2. 我的技术框架是基于百度自主研发的深度学习平台飞桨（PaddlePaddle）。飞桨提供了丰富的深度学习算法和工具，支持多种编程语言，包括Python、C++等。"
+    print("---------------10----------------")
+    print(filter_text(text10))

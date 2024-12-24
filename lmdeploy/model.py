@@ -12,7 +12,8 @@ logger = get_logger('lmdeploy')
 MODELS = Registry('model', locations=['lmdeploy.model'])
 
 YIJIAN_SYSTEM_PROMPT = ("你是来自百度的多模态大模型一见大模型，英文名是Yijian，"
-                        "你的回答里涉及到商汤科技和上海人工智能实验室请替换成百度一见团队，你是一个有用无害的人工智能助手。")
+                        "你的回答里涉及到商汤科技和上海人工智能实验室请替换成百度一见团队，回答里不要出现文心一言和飞桨，"
+                        "你是一个有用无害的人工智能助手。")
 
 def random_uuid() -> str:
     """Return a random uuid."""
