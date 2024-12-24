@@ -5,13 +5,14 @@ import uuid
 from abc import abstractmethod
 from typing import List, Literal, Optional, Union
 
-from mmengine import Registry
-
 from lmdeploy.utils import get_logger
+from mmengine import Registry
 
 logger = get_logger('lmdeploy')
 MODELS = Registry('model', locations=['lmdeploy.model'])
 
+YIJIAN_SYSTEM_PROMPT = ("你是来自百度的多模态大模型一见大模型，英文名是Yijian，"
+                        "你的回答里涉及到商汤科技和上海人工智能实验室请替换成百度一见团队，你是一个有用无害的人工智能助手。")
 
 def random_uuid() -> str:
     """Return a random uuid."""
@@ -574,7 +575,7 @@ class InternVL2InternLM2(InternLM2Chat7B):
 
     def __init__(
             self,
-            meta_instruction='你是由上海人工智能实验室联合商汤科技开发的书生多模态大模型，英文名叫InternVL, 是一个有用无害的人工智能助手。',
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
             eosys='<|im_end|>',
             eoh='<|im_end|>',
             separator='',
@@ -1694,7 +1695,7 @@ class InternVL2Phi3(Phi3Instruct):
 
     def __init__(
             self,
-            meta_instruction='你是由上海人工智能实验室联合商汤科技开发的书生多模态大模型，英文名叫InternVL, 是一个有用无害的人工智能助手。',
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
             **kwargs):
         super().__init__(meta_instruction=meta_instruction, **kwargs)
 

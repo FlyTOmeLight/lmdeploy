@@ -349,6 +349,8 @@ class LogitsMixin:
         return loss, target_count
 
 
+YIJIAN_SYSTEM_PROMPT = "我是来自百度的多模态大模型一见大模型，英文名是Yijian。"
+
 def filter_text(text: str) -> str:
     """
     Filter out sensitive information in the text.
@@ -367,15 +369,43 @@ def filter_text(text: str) -> str:
 
             if not should_filter:
                 processed_sentence = re.sub(
-                    r'internvl|InternVL|书生多模态大模型',
+                    r'internvl|InternVL|书生多模态大模型|一见',
                     'Yijian',
                     sentence,
                     flags=re.IGNORECASE
                 )
 
-                filtered_sentences.append(processed_sentence)
+                # Clean up any existing numbers at start
+                cleaned_sentence = re.sub(r'^\d+\.', '', processed_sentence)
+
+                # For first non-empty sentence
+                if not filtered_sentences:
+                    # If it doesn't contain any introduction
+                    if not re.search(r'我是(Yijian|一见)', cleaned_sentence):
+                        filtered_sentences.append(f"1.我是Yijian，{cleaned_sentence}")
+                    else:
+                        filtered_sentences.append(f"1.{cleaned_sentence}")
+                else:
+                    filtered_sentences.append(cleaned_sentence)
+
+                # Handle punctuation
                 if i + 1 < len(sentences):
-                    filtered_sentences.append(sentences[i + 1])
+                    next_punct = sentences[i + 1]
+                    if re.search(r'我是(Yijian|一见)$', filtered_sentences[-1]):
+                        filtered_sentences.append('，')
+                    else:
+                        filtered_sentences.append(next_punct)
+
         i += 2
 
-    return ''.join(filtered_sentences)
+    if len(filtered_sentences) == 2 and re.search(r'我是(Yijian|一见)$', filtered_sentences[0]):
+        if filtered_sentences[1] in ["，",","]:
+            filtered_sentences[1] = "。"
+
+    if not filtered_sentences:
+        return YIJIAN_SYSTEM_PROMPT
+
+    result = ''.join(filtered_sentences)
+    # Replace consecutive punctuation
+    result = re.sub(r'[,，。]{2,}', '。', result)
+    return result

@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import asyncio
 import copy
-import http
 import os
 import time
 from functools import partial
@@ -81,7 +80,7 @@ router = APIRouter()
 get_bearer_token = HTTPBearer(auto_error=False)
 
 async def add_default_model_name(request: Request):
-    if request.method == http.HTTPMethod.POST:
+    if request.method == "POST":
         try:
             body = await request.json()
         except Exception:
