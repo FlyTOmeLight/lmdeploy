@@ -401,16 +401,16 @@ def filter_text(text: str) -> str:
                     if '百度' in cleaned_sentence:
                         filtered_sentences.append(f"1.{cleaned_sentence}")
                     elif not re.search(r'我是(Yijian|一见)', cleaned_sentence):
-                        filtered_sentences.append(f"1.我是Yijian，{cleaned_sentence}")
+                        filtered_sentences.append(cleaned_sentence)
                     else:
                         filtered_sentences.append(f"1.{cleaned_sentence}")
                 else:
                     # Add number prefix for new main sentences
-                    if i > 0 and sentences[i - 1] in ['。', '！', '？']:
-                        filtered_sentences.append(f"{sentence_count + 1}.{cleaned_sentence}")
-                        sentence_count += 1
-                    else:
-                        filtered_sentences.append(cleaned_sentence)
+                    # if i > 0 and sentences[i - 1] in ['。', '！', '？']:
+                    #     filtered_sentences.append(f"{sentence_count + 1}.{cleaned_sentence}")
+                    #     sentence_count += 1
+                    # else:
+                    filtered_sentences.append(cleaned_sentence)
 
                 # Handle punctuation
                 if i + 1 < len(sentences):
@@ -485,3 +485,7 @@ if __name__ == '__main__':
     text10= "1. 我是百度文心一言，是由百度公司开发的一款基于深度学习技术的自然语言处理模型。2. 我的技术框架是基于百度自主研发的深度学习平台飞桨（PaddlePaddle）。飞桨提供了丰富的深度学习算法和工具，支持多种编程语言，包括Python、C++等。"
     print("---------------10----------------")
     print(filter_text(text10))
+
+    text11="从这张图片来看，很难确定这是什么动物。由于图像非常模糊且细节不清晰，无法准确判断它是否是一只狗或其他类型的宠物或野生动物。建议提供更清晰的图片以便更好地识别该物体。"
+    print("---------------11----------------")
+    print(filter_text(text11))
