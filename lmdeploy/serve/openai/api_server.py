@@ -30,7 +30,6 @@ from lmdeploy.serve.openai.protocol import (  # noqa: E501
     EncodeResponse, ErrorResponse, FunctionResponse, GenerateRequest,
     GenerateResponse, LogProbs, ModelCard, ModelList, ModelPermission,
     ToolCall, TopLogprob, UsageInfo)
-from lmdeploy.serve.utils import filter_text
 from lmdeploy.tokenizer import DetokenizeState, Tokenizer
 from lmdeploy.utils import get_logger
 
@@ -498,8 +497,6 @@ async def chat_completions_v1(request: ChatCompletionRequest,
                                     finish_reason: Optional[str] = None,
                                     logprobs: Optional[LogProbs] = None,
                                     usage: Optional[UsageInfo] = None) -> str:
-        ## 对关键字过滤
-        text = filter_text(text)
         choice_data = ChatCompletionResponseStreamChoice(
             index=index,
             delta=DeltaMessage(role='assistant', content=text),
@@ -595,9 +592,6 @@ async def chat_completions_v1(request: ChatCompletionRequest,
 
     assert final_res is not None
     choices = []
-    # 对关键字过滤
-    text = filter_text(text)
-    # 对关键字过滤
     choice_data = ChatCompletionResponseChoice(
         index=0,
         message=ChatMessage(role='assistant',
@@ -722,7 +716,6 @@ async def completions_v1(request: CompletionRequest,
                                     finish_reason: Optional[str] = None,
                                     logprobs: Optional[LogProbs] = None,
                                     usage: Optional[UsageInfo] = None) -> str:
-        text = filter_text(text)
         choice_data = CompletionResponseStreamChoice(
             index=index,
             text=text,
@@ -809,8 +802,6 @@ async def completions_v1(request: CompletionRequest,
                 final_logprobs, gen_config.skip_special_tokens)
 
         assert final_res is not None
-
-        text = filter_text(text)
 
         choice_data = CompletionResponseChoice(
             index=i,
@@ -996,7 +987,7 @@ async def chat_interactive_v1(request: GenerateRequest,
                                      input_tokens=out.input_token_len,
                                      history_tokens=out.history_token_len,
                                      finish_reason=out.finish_reason)
-            chunk.text = filter_text(chunk.text)
+
             data = chunk.model_dump_json()
             yield f'{data}\n'
 
@@ -1019,7 +1010,6 @@ async def chat_interactive_v1(request: GenerateRequest,
             input_tokens = out.input_token_len
             history_tokens = out.history_token_len
             finish_reason = out.finish_reason
-        text = filter_text(text)
         ret = {
             'text': text,
             'tokens': tokens,
@@ -1177,7 +1167,6 @@ async def batch_chat_completions_v1(request: BatchChatCompletionRequest,
                 VariableInterface.async_engine.tokenizer, resp.token_ids,
                 item.logprobs)
 
-        item.text = filter_text(item.text)
         choice_data = BatchChatCompletionResponseChoice(
             index=item.index,
             message=ChatMessage(role='assistant', content=item.text),
