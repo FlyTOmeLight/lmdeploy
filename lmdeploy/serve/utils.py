@@ -196,3 +196,146 @@ class LogitsMixin:
             result.append(loss.item() / target_count.item())
         logger.info(f'ppl result: {result}')
         return result
+
+
+
+YIJIAN_SYSTEM_PROMPT = "我是来自百度的多模态大模型一见大模型，英文名是Yijian。"
+
+def filter_text(text: str) -> str:
+    """
+    Filter out sensitive information in the text.
+    """
+    # Special case handling for simple inputs
+    logger.info(f"Original response content: {text}")
+    if text.strip() in ['0'] or text.startswith('{'):
+        return text
+
+    filter_keywords = ['上海人工智能实验室', 'OpenGVLab', '商汤科技', 'Shanghai AI Lab', 'SenseTime']
+
+    import re
+    # Check if text contains any filter keywords and no second sentence
+    if any(keyword in text for keyword in filter_keywords) and not re.search(r'2\..*', text):
+        return YIJIAN_SYSTEM_PROMPT
+
+    sentences = re.split('([,，。！？\n])', text)
+    filtered_sentences = []
+
+    i = 0
+    sentence_count = 1
+    while i < len(sentences):
+        sentence = sentences[i]
+
+        if sentence:
+            should_filter = any(keyword in sentence for keyword in filter_keywords)
+
+            if not should_filter:
+                processed_sentence = sentence
+                processed_sentence = re.sub(
+                    r'internvl|InternVL|书生多模态大模型',
+                    'Yijian',
+                    processed_sentence,
+                    flags=re.IGNORECASE
+                )
+
+                processed_sentence = re.sub(
+                    r'文心一言',
+                    '一见多模态大模型',
+                    processed_sentence
+                )
+
+                # Clean up any existing numbers at start
+                cleaned_sentence = re.sub(r'^\d+[\s.]*', '', processed_sentence)
+
+                # For first non-empty sentence
+                if not filtered_sentences:
+                    if '百度' in cleaned_sentence:
+                        filtered_sentences.append(f"1.{cleaned_sentence}")
+                    elif not re.search(r'我是(Yijian|一见)', cleaned_sentence):
+                        filtered_sentences.append(cleaned_sentence)
+                    else:
+                        filtered_sentences.append(f"1.{cleaned_sentence}")
+                else:
+                    # Add number prefix for new main sentences
+                    # if i > 0 and sentences[i - 1] in ['。', '！', '？']:
+                    #     filtered_sentences.append(f"{sentence_count + 1}.{cleaned_sentence}")
+                    #     sentence_count += 1
+                    # else:
+                    filtered_sentences.append(cleaned_sentence)
+
+                # Handle punctuation
+                if i + 1 < len(sentences):
+                    next_punct = sentences[i + 1]
+                    if filtered_sentences and re.search(r'我是(Yijian|一见)$', filtered_sentences[-1]):
+                        filtered_sentences.append('。')
+                    else:
+                        filtered_sentences.append(next_punct)
+
+        i += 2
+
+    if not filtered_sentences:
+        return YIJIAN_SYSTEM_PROMPT
+
+    # If only one sentence ends with "我是Yijian" or similar, add period
+    if len(filtered_sentences) == 2 and re.search(r'我是(Yijian|一见)$', filtered_sentences[0]):
+        filtered_sentences[1] = "。"
+
+    result = ''.join(filtered_sentences)
+
+    # Ensure proper ending
+    if result[-1] in ["，", ","]:
+        result = result[:-1] + "。"
+
+    # Clean up punctuation
+    result = re.sub(r'[,，。]{2,}', '。', result)
+    result = re.sub(r'。\s*', '。', result)
+
+    # Replace comma after "我是Yijian" or "我是一见" with period
+    result = re.sub(r'(我是(?:Yijian|一见))[,，]', r'\1。', result)
+
+    return result
+
+if __name__ == '__main__':
+    # Test cases
+    text1 = "1.我是InternVL,是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------1----------------")
+    print(filter_text(text1))
+
+    text2 = "1.我是InternVL，是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。"
+    print("---------------2----------------")
+    print(filter_text(text2))
+
+    text3 = "1.我是InternVL,是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。"
+    print("---------------3----------------")
+    print(filter_text(text3))
+
+    text4 = "1.我是一见,是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------4----------------")
+    print(filter_text(text4))
+
+    text5 = "1.我是是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------5----------------")
+    print(filter_text(text5))
+
+    text6 = "1.我是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技联合开发的模型。2.我的开发语言和技术框架是基于深度学习技术，使用了Transformer架构和大规模预训练模型。"
+    print("---------------6----------------")
+    print(filter_text(text6))
+
+    text7 = "1.我是由上海人工智能实验室的通用视觉团队(OpenGVLab)和商汤科技"
+    print("---------------7----------------")
+    print(filter_text(text7))
+
+    text8 = "0"
+    print("---------------8----------------")
+    print(filter_text(text8))
+
+    text9 = "{\"图中是否有有人\":\"Yes\"}"
+    print("---------------9----------------")
+    print(filter_text(text9))
+
+    text10= "1. 我是百度文心一言，是由百度公司开发的一款基于深度学习技术的自然语言处理模型。2. 我的技术框架是基于百度自主研发的深度学习平台飞桨（PaddlePaddle）。飞桨提供了丰富的深度学习算法和工具，支持多种编程语言，包括Python、C++等。"
+    print("---------------10----------------")
+    print(filter_text(text10))
+
+    text11="从这张图片来看，很难确定这是什么动物。由于图像非常模糊且细节不清晰，无法准确判断它是否是一只狗或其他类型的宠物或野生动物。建议提供更清晰的图片以便更好地识别该物体。"
+    print("---------------11----------------")
+    print(filter_text(text11))

@@ -12,6 +12,9 @@ from lmdeploy.utils import get_logger
 logger = get_logger('lmdeploy')
 MODELS = Registry('model', locations=['lmdeploy.model'])
 
+YIJIAN_SYSTEM_PROMPT = ("你是来自百度的多模态大模型一见大模型，英文名是Yijian，"
+                        "你的回答里涉及到商汤科技和上海人工智能实验室请替换成百度一见团队，回答里不要出现文心一言和飞桨，"
+                        "你是一个有用无害的人工智能助手。")
 
 def random_uuid() -> str:
     """Return a random uuid."""
@@ -418,10 +421,11 @@ class InternLMChat7B(BaseChatTemplate):
     def __init__(
             self,
             system='<|System|>:',
-            meta_instruction="""You are an AI assistant whose name is InternLM (书生·浦语).
-- InternLM (书生·浦语) is a conversational language model that is developed by Shanghai AI Laboratory (上海人工智能实验室). It is designed to be helpful, honest, and harmless.
-- InternLM (书生·浦语) can understand and communicate fluently in the language chosen by the user such as English and 中文.
-""",  # noqa: E501
+#             meta_instruction="""You are an AI assistant whose name is InternLM (书生·浦语).
+# - InternLM (书生·浦语) is a conversational language model that is developed by Shanghai AI Laboratory (上海人工智能实验室). It is designed to be helpful, honest, and harmless.
+# - InternLM (书生·浦语) can understand and communicate fluently in the language chosen by the user such as English and 中文.
+# """,  # noqa: E501
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
             eosys='\n',
             user='<|User|>:',
             eoh='\n',
@@ -559,7 +563,11 @@ class InternLM2Chat7B(InternLMChat7B):
 @MODELS.register_module(name='internvl-internlm2')
 class InternVLInternLM2Chat(InternLM2Chat7B):
 
-    def __init__(self, meta_instruction='You are an AI assistant whose name is InternLM (书生·浦语).', **kwargs):
+    def __init__(
+            self,
+            # meta_instruction='You are an AI assistant whose name is InternLM (书生·浦语).',
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
+            **kwargs):
         super().__init__(meta_instruction=meta_instruction, **kwargs)
 
     @classmethod
@@ -583,13 +591,14 @@ class InternVLInternLM2Chat(InternLM2Chat7B):
 @MODELS.register_module(name='internvl2-internlm2')
 class InternVL2InternLM2(InternLM2Chat7B):
 
-    def __init__(self,
-                 meta_instruction='你是由上海人工智能实验室联合商汤科技开发的书生多模态大模型，英文名叫InternVL, 是一个有用无害的人工智能助手。',
-                 eosys='<|im_end|>',
-                 eoh='<|im_end|>',
-                 separator='',
-                 stop_words=['<|im_start|>', '<|im_end|>'],
-                 **kwargs):
+    def __init__(
+            self,
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
+            eosys='<|im_end|>',
+            eoh='<|im_end|>',
+            separator='',
+            stop_words=['<|im_start|>', '<|im_end|>'],
+            **kwargs):
         super().__init__(meta_instruction=meta_instruction,
                          eosys=eosys,
                          separator=separator,
@@ -616,7 +625,8 @@ class InternVL2_5(InternLM2Chat7B):
 
     def __init__(
             self,
-            meta_instruction='你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大语言模型。',  # noqa
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
+            # meta_instruction='你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大语言模型。',  # noqa
             **kwargs):
         super().__init__(meta_instruction=meta_instruction, **kwargs)
 
@@ -636,20 +646,22 @@ class InternVL2_5(InternLM2Chat7B):
 class InternLMXComposer2Chat7B(InternLMChat7B):
     """Chat template and generation parameters of InternLM-XComposer2-7b."""
 
-    def __init__(self,
-                 system='[UNUSED_TOKEN_146]system\n',
-                 meta_instruction="""You are an AI assistant whose name is InternLM-XComposer (浦语·灵笔).
-- InternLM-XComposer (浦语·灵笔) is a multi-modality conversational language model that is developed by Shanghai AI Laboratory (上海人工智能实验室). It is designed to be helpful, honest, and harmless.
-- InternLM-XComposer (浦语·灵笔) can understand and communicate fluently in the language chosen by the user such as English and 中文.
-- InternLM-XComposer (浦语·灵笔) is capable of comprehending and articulating responses effectively based on the provided image.""",
-                 user='[UNUSED_TOKEN_146]user\n',
-                 assistant='[UNUSED_TOKEN_146]assistant\n',
-                 eosys='[UNUSED_TOKEN_145]\n',
-                 eoh='[UNUSED_TOKEN_145]\n',
-                 eoa='[UNUSED_TOKEN_145]\n',
-                 separator='\n',
-                 stop_words=['[UNUSED_TOKEN_145]'],
-                 **kwargs):
+    def __init__(
+            self,
+            system='[UNUSED_TOKEN_146]system\n',
+#             meta_instruction="""You are an AI assistant whose name is InternLM-XComposer (浦语·灵笔).
+# - InternLM-XComposer (浦语·灵笔) is a multi-modality conversational language model that is developed by Shanghai AI Laboratory (上海人工智能实验室). It is designed to be helpful, honest, and harmless.
+# - InternLM-XComposer (浦语·灵笔) can understand and communicate fluently in the language chosen by the user such as English and 中文.
+# - InternLM-XComposer (浦语·灵笔) is capable of comprehending and articulating responses effectively based on the provided image.""",
+            user='[UNUSED_TOKEN_146]user\n',
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
+            assistant='[UNUSED_TOKEN_146]assistant\n',
+            eosys='[UNUSED_TOKEN_145]\n',
+            eoh='[UNUSED_TOKEN_145]\n',
+            eoa='[UNUSED_TOKEN_145]\n',
+            separator='\n',
+            stop_words=['[UNUSED_TOKEN_145]'],
+            **kwargs):
         super().__init__(system=system,
                          meta_instruction=meta_instruction,
                          user=user,
@@ -1658,7 +1670,10 @@ class Phi3Instruct(BaseChatTemplate):
 @MODELS.register_module(name='internvl2-phi3')
 class InternVL2Phi3(Phi3Instruct):
 
-    def __init__(self, meta_instruction='你是由上海人工智能实验室联合商汤科技开发的书生多模态大模型，英文名叫InternVL, 是一个有用无害的人工智能助手。', **kwargs):
+    def __init__(
+            self,
+            meta_instruction=YIJIAN_SYSTEM_PROMPT,
+            **kwargs):
         super().__init__(meta_instruction=meta_instruction, **kwargs)
 
     @classmethod

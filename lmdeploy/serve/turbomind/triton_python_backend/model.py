@@ -6,7 +6,6 @@ import threading
 
 import numpy as np
 import triton_python_backend_utils as pb_utils
-
 from lmdeploy import GenerationConfig, TurbomindEngineConfig, pipeline
 
 

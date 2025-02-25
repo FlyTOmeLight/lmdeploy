@@ -46,6 +46,40 @@ class VLAsyncEngine(AsyncEngine):
             _prompts = prompts
         return _prompts
 
+    def _process_item(self, item):
+        if isinstance(item, list):
+            return [self._process_item(i) for i in item]
+
+        if isinstance(item, dict):
+            if 'content' in item:
+                if isinstance(item['content'], list):
+                    item['content'] = [
+                        self._process_message(m) for m in item['content']
+                    ]
+                else:
+                    item['content'] = self._process_message(item['content'])
+                return item
+
+            return item
+
+    @staticmethod
+    def _process_message(message):
+        if isinstance(message, dict):
+            if message.get('type') == 'image_url' or message.get(
+                    'type') == 'image_data':
+                # Convert image URL to PIL Image
+                image_url = message['image_url']['url'] if message.get(
+                    'type') == 'image_url' else message['image_data']["data"]
+                image = None
+                if isinstance(image_url, PIL.Image.Image):
+                    image = image_url
+                if isinstance(image_url, str):
+                    image = load_image(image_url)
+
+                return {'type': 'image_data', 'image_data': {'data': image}}
+
+        return message
+
     async def _get_prompt_input(self,
                                 messages: Union[str, List[Dict]],
                                 do_preprocess: bool,
