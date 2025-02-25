@@ -13,21 +13,10 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
-from starlette.middleware.base import BaseHTTPMiddleware
-
 from lmdeploy.archs import get_task
 from lmdeploy.messages import GenerationConfig, LogitsProcessor, PytorchEngineConfig, TurbomindEngineConfig
 from lmdeploy.model import ChatTemplateConfig
 from lmdeploy.serve.async_engine import AsyncEngine
-from lmdeploy.serve.openai.protocol import ChatCompletionResponse  # noqa: E501
-from lmdeploy.serve.openai.protocol import (ChatCompletionRequest, ChatCompletionResponseChoice,
-                                            ChatCompletionResponseStreamChoice, ChatCompletionStreamResponse,
-                                            ChatCompletionTokenLogprob, ChatMessage, ChoiceLogprobs, CompletionRequest,
-                                            CompletionResponse, CompletionResponseChoice,
-                                            CompletionResponseStreamChoice, CompletionStreamResponse, DeltaMessage,
-                                            EmbeddingsRequest, EncodeRequest, EncodeResponse, ErrorResponse,
-                                            FunctionResponse, GenerateRequest, GenerateResponse, LogProbs, ModelCard,
-                                            ModelList, ModelPermission, ToolCall, TopLogprob, UsageInfo)
 from lmdeploy.serve.openai.extra_protocol import (
     BatchChatCompletionRequest, BatchChatCompletionResponseChoice,
     BatchChatCompletionResponse)
@@ -43,6 +32,7 @@ from lmdeploy.serve.openai.protocol import (  # noqa: E501
     ToolCall, TopLogprob, UsageInfo)
 from lmdeploy.tokenizer import DetokenizeState, Tokenizer
 from lmdeploy.utils import get_logger
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # yapf: enable
 

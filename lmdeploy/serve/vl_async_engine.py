@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict, List, Literal, Optional, Tuple, Union
 
 import PIL
-
+import PIL.Image
 from lmdeploy.messages import PytorchEngineConfig, TurbomindEngineConfig, VisionConfig
 from lmdeploy.pytorch.check_env import try_import_deeplink
 from lmdeploy.serve.async_engine import AsyncEngine
@@ -42,22 +42,25 @@ class VLAsyncEngine(AsyncEngine):
             _prompts = cls.prompt_to_messages(prompts)
         elif isinstance(prompts[0], tuple) or isinstance(prompts[0], str):
             _prompts = [cls.prompt_to_messages(x) for x in prompts]
+        elif isinstance(prompts[0], List):
+            _prompts = cls._process_item(prompts)
         else:
             _prompts = prompts
         return _prompts
 
-    def _process_item(self, item):
+    @classmethod
+    def _process_item(cls, item):
         if isinstance(item, list):
-            return [self._process_item(i) for i in item]
+            return [cls._process_item(i) for i in item]
 
         if isinstance(item, dict):
             if 'content' in item:
                 if isinstance(item['content'], list):
                     item['content'] = [
-                        self._process_message(m) for m in item['content']
+                        cls._process_message(m) for m in item['content']
                     ]
                 else:
-                    item['content'] = self._process_message(item['content'])
+                    item['content'] = cls._process_message(item['content'])
                 return item
 
             return item
@@ -277,3 +280,10 @@ class VLAsyncEngine(AsyncEngine):
                 messages['content'].append(item)
 
         return [messages]
+
+    async def extra_batch_infer(self,
+                                prompts: Union[List[str], str, List[Dict],
+                                List[List[Dict]]], **kwargs):
+        """Extra Inference a batch of prompts."""
+        prompts = self._convert_prompts(prompts)
+        return asyncio.to_thread(super().batch_infer, prompts, **kwargs)
